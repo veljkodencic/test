@@ -43,10 +43,29 @@ resource "aws_iam_role" "albc" {
   tags               = var.tags
 }
 
-resource "aws_iam_role_policy" "albc" {
-  name   = "${var.cluster_name}-albc-policy"
-  role   = aws_iam_role.albc.id
-  policy = file("${path.module}/albc-iam-policy.json")
+resource "aws_iam_role_policy_attachment" "albc" {
+  role       = aws_iam_role.albc.name
+  policy_arn = "arn:aws:iam::aws:policy/ElasticLoadBalancingFullAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "albc_ec2" {
+  role       = aws_iam_role.albc.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2FullAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "albc_shield" {
+  role       = aws_iam_role.albc.name
+  policy_arn = "arn:aws:iam::aws:policy/AWSShieldFullAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "albc_waf" {
+  role       = aws_iam_role.albc.name
+  policy_arn = "arn:aws:iam::aws:policy/AWSWAFFullAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "albc_cognito" {
+  role       = aws_iam_role.albc.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonCognitoPowerUser"
 }
 
 # ── IRSA: Fluent Bit ──────────────────────────────────────────────────────────
@@ -211,6 +230,8 @@ resource "kubernetes_deployment" "demo_app" {
     labels    = { app = "demo-app" }
   }
 
+  wait_for_rollout = false
+
   spec {
     replicas = 2
 
@@ -268,9 +289,9 @@ resource "kubernetes_deployment" "demo_app" {
               path = "/health"
               port = 8080
             }
-            initial_delay_seconds = 15
+            initial_delay_seconds = 60
             period_seconds        = 15
-            failure_threshold     = 3
+            failure_threshold     = 5
           }
 
           readiness_probe {
@@ -278,9 +299,9 @@ resource "kubernetes_deployment" "demo_app" {
               path = "/health"
               port = 8080
             }
-            initial_delay_seconds = 5
+            initial_delay_seconds = 30
             period_seconds        = 10
-            failure_threshold     = 3
+            failure_threshold     = 5
           }
         }
       }
