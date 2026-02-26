@@ -34,7 +34,7 @@ terraform {
   # Replace ACCOUNT_ID with your 12-digit AWS Account ID.
   # Get it by running: aws sts get-caller-identity --query Account --output text
   backend "s3" {
-    bucket  = "veljko-tfstate-139592264087"
+    bucket  = "veljko-tfstate-ACCOUNT_ID"
     key     = "veljko/dev/terraform.tfstate"
     region  = "us-east-1"
     encrypt = true
@@ -130,11 +130,11 @@ module "k8s_apps" {
   app_image              = var.app_image
   grafana_admin_password = var.grafana_admin_password
 
-  db_host       = module.rds.db_host
-  db_port       = module.rds.db_port
-  db_name       = module.rds.db_name
-  db_username   = module.rds.db_username
-  db_secret_arn = module.rds.db_secret_arn
+  db_host                = module.rds.db_host
+  db_port                = module.rds.db_port
+  db_name                = module.rds.db_name
+  db_username            = module.rds.db_username
+  db_password            = var.db_password
 
   tags       = local.common_tags
   depends_on = [module.eks, module.rds]
