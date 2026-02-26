@@ -120,12 +120,18 @@ resource "helm_release" "aws_lbc" {
   version    = "1.7.1"
   namespace  = "kube-system"
 
-  set { name = "clusterName"; value = var.cluster_name }
+  set {
+    name  = "clusterName"
+    value = var.cluster_name
+  }
   set {
     name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
     value = aws_iam_role.albc.arn
   }
-  set { name = "replicaCount"; value = "1" }
+  set {
+    name  = "replicaCount"
+    value = "1"
+  }
 }
 
 # ── Helm: External Secrets Operator ───────────────────────────────────────────
