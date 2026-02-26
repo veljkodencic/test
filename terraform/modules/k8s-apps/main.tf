@@ -1,7 +1,7 @@
 ################################################################################
 # k8s-apps module
-# Deploys: AWS LBC, External Secrets Operator, Prometheus stack,
-#          Fluent Bit, demo app (backed by RDS PostgreSQL)
+# Deploys: AWS LBC, Prometheus stack, Fluent Bit, demo app
+# DB password stored as a plain Kubernetes Secret (no Secrets Manager needed)
 ################################################################################
 
 # ── Namespaces ─────────────────────────────────────────────────────────────────
@@ -15,10 +15,6 @@ resource "kubernetes_namespace" "monitoring" {
 
 resource "kubernetes_namespace" "logging" {
   metadata { name = "logging" }
-}
-
-resource "kubernetes_namespace" "external_secrets" {
-  metadata { name = "external-secrets" }
 }
 
 # ── IRSA: AWS Load Balancer Controller ────────────────────────────────────────
@@ -48,34 +44,6 @@ resource "aws_iam_role_policy" "albc" {
   name   = "${var.cluster_name}-albc-policy"
   role   = aws_iam_role.albc.id
   policy = file("${path.module}/albc-iam-policy.json")
-}
-
-# ── IRSA: External Secrets Operator ───────────────────────────────────────────
-data "aws_iam_policy_document" "eso_assume" {
-  statement {
-    effect  = "Allow"
-    actions = ["sts:AssumeRoleWithWebIdentity"]
-    principals {
-      type        = "Federated"
-      identifiers = [var.oidc_provider_arn]
-    }
-    condition {
-      test     = "StringEquals"
-      variable = "${replace(var.oidc_issuer_url, "https://", "")}:sub"
-      values   = ["system:serviceaccount:external-secrets:external-secrets"]
-    }
-  }
-}
-
-resource "aws_iam_role" "eso" {
-  name               = "${var.cluster_name}-eso-role"
-  assume_role_policy = data.aws_iam_policy_document.eso_assume.json
-  tags               = var.tags
-}
-
-resource "aws_iam_role_policy_attachment" "eso" {
-  role       = aws_iam_role.eso.name
-  policy_arn = "arn:aws:iam::aws:policy/SecretsManagerReadWrite"
 }
 
 # ── IRSA: Fluent Bit ──────────────────────────────────────────────────────────
@@ -112,6 +80,18 @@ resource "aws_cloudwatch_log_group" "app_logs" {
   tags              = var.tags
 }
 
+# ── Kubernetes Secret: DB password ────────────────────────────────────────────
+resource "kubernetes_secret" "db_credentials" {
+  metadata {
+    name      = "db-credentials"
+    namespace = kubernetes_namespace.demo.metadata[0].name
+  }
+
+  data = {
+    password = var.db_password
+  }
+}
+
 # ── Helm: AWS Load Balancer Controller ────────────────────────────────────────
 resource "helm_release" "aws_lbc" {
   name       = "aws-load-balancer-controller"
@@ -131,20 +111,6 @@ resource "helm_release" "aws_lbc" {
   set {
     name  = "replicaCount"
     value = "1"
-  }
-}
-
-# ── Helm: External Secrets Operator ───────────────────────────────────────────
-resource "helm_release" "external_secrets" {
-  name       = "external-secrets"
-  repository = "https://charts.external-secrets.io"
-  chart      = "external-secrets"
-  version    = "0.9.13"
-  namespace  = kubernetes_namespace.external_secrets.metadata[0].name
-
-  set {
-    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-    value = aws_iam_role.eso.arn
   }
 }
 
@@ -219,53 +185,6 @@ resource "helm_release" "fluent_bit" {
   })]
 }
 
-# ── External Secrets: sync DB password from Secrets Manager ───────────────────
-resource "kubernetes_manifest" "cluster_secret_store" {
-  manifest = {
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ClusterSecretStore"
-    metadata   = { name = "aws-secrets-manager" }
-    spec = {
-      provider = {
-        aws = {
-          service = "SecretsManager"
-          region  = var.aws_region
-          auth = {
-            jwt = {
-              serviceAccountRef = {
-                name      = "external-secrets"
-                namespace = "external-secrets"
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  depends_on = [helm_release.external_secrets]
-}
-
-resource "kubernetes_manifest" "db_external_secret" {
-  manifest = {
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ExternalSecret"
-    metadata = {
-      name      = "db-credentials"
-      namespace = kubernetes_namespace.demo.metadata[0].name
-    }
-    spec = {
-      refreshInterval = "1h"
-      secretStoreRef  = { name = "aws-secrets-manager", kind = "ClusterSecretStore" }
-      target          = { name = "db-credentials", creationPolicy = "Owner" }
-      data = [{
-        secretKey = "password"
-        remoteRef = { key = var.db_secret_arn, property = "" }
-      }]
-    }
-  }
-  depends_on = [kubernetes_manifest.cluster_secret_store]
-}
-
 # ── Demo App: Deployment ───────────────────────────────────────────────────────
 resource "kubernetes_deployment" "demo_app" {
   metadata {
@@ -294,7 +213,9 @@ resource "kubernetes_deployment" "demo_app" {
           name  = "demo-app"
           image = var.app_image
 
-          port { container_port = 8080 }
+          port {
+            container_port = 8080
+          }
 
           env {
             name  = "DB_HOST"
@@ -314,7 +235,9 @@ resource "kubernetes_deployment" "demo_app" {
           }
 
           env_from {
-            secret_ref { name = "db-credentials" }
+            secret_ref {
+              name = kubernetes_secret.db_credentials.metadata[0].name
+            }
           }
 
           resources {
@@ -346,7 +269,7 @@ resource "kubernetes_deployment" "demo_app" {
     }
   }
 
-  depends_on = [kubernetes_manifest.db_external_secret]
+  depends_on = [kubernetes_secret.db_credentials]
 }
 
 # ── Demo App: Service ──────────────────────────────────────────────────────────
@@ -355,9 +278,11 @@ resource "kubernetes_service" "demo_app" {
     name      = "demo-app"
     namespace = kubernetes_namespace.demo.metadata[0].name
   }
+
   spec {
     selector = { app = "demo-app" }
     type     = "ClusterIP"
+
     port {
       port        = 80
       target_port = 8080
@@ -378,6 +303,7 @@ resource "kubernetes_ingress_v1" "demo_app" {
       "alb.ingress.kubernetes.io/healthcheck-path" = "/health"
     }
   }
+
   spec {
     rule {
       http {
@@ -387,13 +313,16 @@ resource "kubernetes_ingress_v1" "demo_app" {
           backend {
             service {
               name = kubernetes_service.demo_app.metadata[0].name
-              port { number = 80 }
+              port {
+                number = 80
+              }
             }
           }
         }
       }
     }
   }
+
   depends_on = [helm_release.aws_lbc]
 }
 
@@ -403,14 +332,17 @@ resource "kubernetes_horizontal_pod_autoscaler_v2" "demo_app" {
     name      = "demo-app"
     namespace = kubernetes_namespace.demo.metadata[0].name
   }
+
   spec {
     scale_target_ref {
       api_version = "apps/v1"
       kind        = "Deployment"
       name        = kubernetes_deployment.demo_app.metadata[0].name
     }
+
     min_replicas = 2
     max_replicas = 6
+
     metric {
       type = "Resource"
       resource {
