@@ -1,0 +1,68 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: veljko-app-alerts
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: veljko-demo-app
+      interval: 30s
+      rules:
+        - alert: AppHighErrorRate
+          expr: |
+            sum(rate(http_requests_total{status_code=~"5.."}[5m]))
+            / sum(rate(http_requests_total[5m])) > 0.05
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High error rate on veljko demo-app"
+            description: "Error rate is {{ $value | humanizePercentage }} (threshold 5%)"
+
+        - alert: AppHighLatency
+          expr: |
+            histogram_quantile(0.95,
+              sum by (le) (rate(http_request_duration_seconds_bucket[5m]))
+            ) > 1.0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High p95 latency on veljko demo-app"
+            description: "p95 latency is {{ $value }}s"
+
+        - alert: AppDown
+          expr: up{job="demo-app"} == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "veljko demo-app is down"
+
+        - alert: DBConnectionErrors
+          expr: increase(db_connection_errors_total[5m]) > 5
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "DB connection errors on veljko demo-app"
+
+        - alert: PodCrashLooping
+          expr: |
+            rate(kube_pod_container_status_restarts_total{namespace="demo"}[15m]) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod {{ $labels.pod }} is crash-looping"
+
+        - alert: NodeHighCPU
+          expr: |
+            100 - (avg by(node) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Node {{ $labels.node }} CPU above 80%"
