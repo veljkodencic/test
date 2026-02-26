@@ -1,0 +1,50 @@
+name: Destroy — veljko-infra
+
+on:
+  workflow_dispatch:  # manual trigger only — never runs automatically
+
+env:
+  AWS_REGION:      "us-east-1"
+  EKS_CLUSTER:     "veljko-eks-dev"
+  TF_STATE_BUCKET: "veljko-tfstate-139592264087"
+  TF_WORKING_DIR:  "terraform/environments/dev"
+
+jobs:
+  destroy:
+    name: Terraform Destroy
+    runs-on: ubuntu-latest
+    environment: destroy  # requires manual approval in GitHub before running
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.5"
+
+      - name: Terraform Init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ env.TF_STATE_BUCKET }}" \
+            -backend-config="key=veljko/dev/terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}"
+
+      - name: Terraform Destroy
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        env:
+          TF_VAR_db_password:            ${{ secrets.TF_VAR_DB_PASSWORD }}
+          TF_VAR_grafana_admin_password: ${{ secrets.TF_VAR_GRAFANA_PASSWORD }}
+          TF_VAR_app_image:              "public.ecr.aws/nginx/nginx:latest"
+        run: terraform destroy -auto-approve

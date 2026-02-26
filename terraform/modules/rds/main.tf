@@ -64,7 +64,7 @@ resource "aws_db_instance" "this" {
   identifier = "${var.name}-postgres"
 
   engine         = "postgres"
-  engine_version = "15.4"
+  engine_version = "15.7"
 
   # Allowed RDS instance types: db.t2.micro/small, db.t3.micro/small, db.t4g.micro/small
   instance_class = var.instance_class
