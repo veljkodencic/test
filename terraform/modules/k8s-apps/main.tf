@@ -53,20 +53,7 @@ resource "aws_iam_role_policy_attachment" "albc_ec2" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2FullAccess"
 }
 
-resource "aws_iam_role_policy_attachment" "albc_shield" {
-  role       = aws_iam_role.albc.name
-  policy_arn = "arn:aws:iam::aws:policy/AWSShieldFullAccess"
-}
 
-resource "aws_iam_role_policy_attachment" "albc_waf" {
-  role       = aws_iam_role.albc.name
-  policy_arn = "arn:aws:iam::aws:policy/AWSWAFFullAccess"
-}
-
-resource "aws_iam_role_policy_attachment" "albc_cognito" {
-  role       = aws_iam_role.albc.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonCognitoPowerUser"
-}
 
 # ── IRSA: Fluent Bit ──────────────────────────────────────────────────────────
 data "aws_iam_policy_document" "fluentbit_assume" {
