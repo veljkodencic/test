@@ -296,10 +296,22 @@ resource "kubernetes_deployment" "demo_app" {
 
           port { container_port = 8080 }
 
-          env { name = "DB_HOST"; value = var.db_host }
-          env { name = "DB_PORT"; value = tostring(var.db_port) }
-          env { name = "DB_NAME"; value = var.db_name }
-          env { name = "DB_USER"; value = var.db_username }
+          env {
+            name  = "DB_HOST"
+            value = var.db_host
+          }
+          env {
+            name  = "DB_PORT"
+            value = tostring(var.db_port)
+          }
+          env {
+            name  = "DB_NAME"
+            value = var.db_name
+          }
+          env {
+            name  = "DB_USER"
+            value = var.db_username
+          }
 
           env_from {
             secret_ref { name = "db-credentials" }
@@ -311,14 +323,20 @@ resource "kubernetes_deployment" "demo_app" {
           }
 
           liveness_probe {
-            http_get { path = "/health"; port = 8080 }
+            http_get {
+              path = "/health"
+              port = 8080
+            }
             initial_delay_seconds = 15
             period_seconds        = 15
             failure_threshold     = 3
           }
 
           readiness_probe {
-            http_get { path = "/health"; port = 8080 }
+            http_get {
+              path = "/health"
+              port = 8080
+            }
             initial_delay_seconds = 5
             period_seconds        = 10
             failure_threshold     = 3
