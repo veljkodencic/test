@@ -1,11 +1,11 @@
 """
 veljko-demo-app — Flask application
-Connects to RDS PostgreSQL. Exposes /health, /metrics, /items CRUD.
 """
 
 import os
 import time
 import logging
+import threading
 
 from flask import Flask, jsonify, request, Response
 from sqlalchemy import create_engine, text, Column, Integer, String, DateTime
@@ -28,17 +28,19 @@ DB_HOST     = os.environ["DB_HOST"]
 DB_PORT     = os.environ.get("DB_PORT", "5432")
 DB_NAME     = os.environ["DB_NAME"]
 DB_USER     = os.environ["DB_USER"]
-DB_PASSWORD = os.environ["password"]  # key name from the K8s Secret
+DB_PASSWORD = os.environ["password"]
 
 DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 engine       = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
     pool_size=5,
-    connect_args={"connect_timeout": 10},
+    connect_args={"connect_timeout": 5},
 )
 SessionLocal = sessionmaker(bind=engine)
 Base         = declarative_base()
+
+_db_ready = False
 
 
 class Item(Base):
@@ -48,23 +50,23 @@ class Item(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
-_db_initialized = False
-
-def init_db():
-    """Create tables. Called lazily on first request so gunicorn doesn't timeout."""
-    global _db_initialized
-    if _db_initialized:
-        return
-    for attempt in range(10):
+def init_db_background():
+    """Connect to DB in a background thread — never blocks gunicorn workers."""
+    global _db_ready
+    for attempt in range(30):
         try:
             Base.metadata.create_all(bind=engine)
+            _db_ready = True
             log.info("DB tables ready")
-            _db_initialized = True
             return
         except Exception as e:
-            log.warning(f"DB not ready ({attempt + 1}/10): {e}")
-            time.sleep(3)
-    log.error("Could not connect to DB after 10 attempts — continuing anyway")
+            log.warning(f"DB not ready ({attempt + 1}/30): {e}")
+            time.sleep(5)
+    log.error("Could not connect to DB after 30 attempts")
+
+
+# Start DB init in background immediately on startup
+threading.Thread(target=init_db_background, daemon=True).start()
 
 
 # ── Prometheus metrics ────────────────────────────────────────────────────────
@@ -87,29 +89,28 @@ ITEMS_GAUGE = Gauge("app_items_total", "Total items in DB")
 # ── Routes ─────────────────────────────────────────────────────────────────────
 @app.route("/")
 def index():
-    init_db()
     return jsonify({
         "app":       "veljko-demo",
         "version":   os.environ.get("APP_VERSION", "dev"),
+        "db_ready":  _db_ready,
         "endpoints": ["/health", "/metrics", "/items"],
     })
 
 
 @app.route("/health")
 def health():
-    init_db()
+    """
+    Always returns 200 so the pod stays alive.
+    Reports db status but never fails because of DB — the pod should not
+    restart just because RDS is slow to accept connections.
+    """
     start = time.time()
-    try:
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-        REQUEST_COUNT.labels("GET", "/health", "200").inc()
-        REQUEST_LATENCY.labels("GET", "/health").observe(time.time() - start)
-        return jsonify({"status": "ok", "db": "connected"}), 200
-    except Exception as e:
-        DB_ERRORS.inc()
-        log.error(f"Health check failed: {e}")
-        REQUEST_COUNT.labels("GET", "/health", "503").inc()
-        return jsonify({"status": "degraded", "db": str(e)}), 503
+    REQUEST_COUNT.labels("GET", "/health", "200").inc()
+    REQUEST_LATENCY.labels("GET", "/health").observe(time.time() - start)
+    return jsonify({
+        "status":   "ok",
+        "db_ready": _db_ready,
+    }), 200
 
 
 @app.route("/metrics")
@@ -119,7 +120,8 @@ def metrics():
 
 @app.route("/items", methods=["GET"])
 def list_items():
-    init_db()
+    if not _db_ready:
+        return jsonify({"error": "db not ready yet, please retry"}), 503
     start = time.time()
     db = SessionLocal()
     try:
@@ -143,7 +145,8 @@ def list_items():
 
 @app.route("/items", methods=["POST"])
 def create_item():
-    init_db()
+    if not _db_ready:
+        return jsonify({"error": "db not ready yet, please retry"}), 503
     start = time.time()
     data = request.get_json()
     if not data or "name" not in data:
@@ -171,7 +174,8 @@ def create_item():
 
 @app.route("/items/<int:item_id>", methods=["DELETE"])
 def delete_item(item_id):
-    init_db()
+    if not _db_ready:
+        return jsonify({"error": "db not ready yet, please retry"}), 503
     start = time.time()
     db = SessionLocal()
     try:

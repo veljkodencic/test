@@ -34,7 +34,7 @@ terraform {
   # Replace ACCOUNT_ID with your 12-digit AWS Account ID.
   # Get it by running: aws sts get-caller-identity --query Account --output text
   backend "s3" {
-    bucket  = "veljko-tfstate-ACCOUNT_ID"
+    bucket  = "veljko-tfstate-139592264087"
     key     = "veljko/dev/terraform.tfstate"
     region  = "us-east-1"
     encrypt = true
@@ -112,6 +112,7 @@ module "rds" {
 
   # Allowed RDS instance types: db.t2.micro/small, db.t3.micro/small, db.t4g.micro/small
   instance_class = "db.t3.micro"
+  vpc_cidr       = "10.0.0.0/16"
 
   db_name     = "appdb"
   db_username = "appuser"
