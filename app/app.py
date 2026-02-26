@@ -1,14 +1,6 @@
 """
-veljko-demo-app
-Flask application backed by RDS PostgreSQL.
-
-Endpoints:
-  GET  /              app info
-  GET  /health        liveness + readiness (checks DB connection)
-  GET  /metrics       Prometheus metrics
-  GET  /items         list all items
-  POST /items         create item  {"name": "..."}
-  DELETE /items/<id>  delete item
+veljko-demo-app — Flask application
+Connects to RDS PostgreSQL. Exposes /health, /metrics, /items CRUD.
 """
 
 import os
@@ -36,10 +28,15 @@ DB_HOST     = os.environ["DB_HOST"]
 DB_PORT     = os.environ.get("DB_PORT", "5432")
 DB_NAME     = os.environ["DB_NAME"]
 DB_USER     = os.environ["DB_USER"]
-DB_PASSWORD = os.environ["password"]   # synced from Secrets Manager via External Secrets
+DB_PASSWORD = os.environ["password"]  # key name from the K8s Secret
 
 DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-engine       = create_engine(DATABASE_URL, pool_pre_ping=True, pool_size=5)
+engine       = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_size=5,
+    connect_args={"connect_timeout": 10},
+)
 SessionLocal = sessionmaker(bind=engine)
 Base         = declarative_base()
 
@@ -51,16 +48,23 @@ class Item(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
+_db_initialized = False
+
 def init_db():
+    """Create tables. Called lazily on first request so gunicorn doesn't timeout."""
+    global _db_initialized
+    if _db_initialized:
+        return
     for attempt in range(10):
         try:
             Base.metadata.create_all(bind=engine)
             log.info("DB tables ready")
+            _db_initialized = True
             return
         except Exception as e:
             log.warning(f"DB not ready ({attempt + 1}/10): {e}")
             time.sleep(3)
-    raise RuntimeError("Cannot connect to DB after 10 attempts")
+    log.error("Could not connect to DB after 10 attempts — continuing anyway")
 
 
 # ── Prometheus metrics ────────────────────────────────────────────────────────
@@ -69,7 +73,7 @@ REQUEST_COUNT = Counter(
     ["method", "endpoint", "status_code"],
 )
 REQUEST_LATENCY = Histogram(
-    "http_request_duration_seconds", "HTTP request latency",
+    "http_request_duration_seconds", "HTTP latency",
     ["method", "endpoint"],
     buckets=[0.01, 0.05, 0.1, 0.5, 1.0, 5.0],
 )
@@ -83,15 +87,17 @@ ITEMS_GAUGE = Gauge("app_items_total", "Total items in DB")
 # ── Routes ─────────────────────────────────────────────────────────────────────
 @app.route("/")
 def index():
+    init_db()
     return jsonify({
-        "app": "veljko-demo",
-        "version": os.environ.get("APP_VERSION", "dev"),
+        "app":       "veljko-demo",
+        "version":   os.environ.get("APP_VERSION", "dev"),
         "endpoints": ["/health", "/metrics", "/items"],
     })
 
 
 @app.route("/health")
 def health():
+    init_db()
     start = time.time()
     try:
         with engine.connect() as conn:
@@ -113,6 +119,7 @@ def metrics():
 
 @app.route("/items", methods=["GET"])
 def list_items():
+    init_db()
     start = time.time()
     db = SessionLocal()
     try:
@@ -136,6 +143,7 @@ def list_items():
 
 @app.route("/items", methods=["POST"])
 def create_item():
+    init_db()
     start = time.time()
     data = request.get_json()
     if not data or "name" not in data:
@@ -163,6 +171,7 @@ def create_item():
 
 @app.route("/items/<int:item_id>", methods=["DELETE"])
 def delete_item(item_id):
+    init_db()
     start = time.time()
     db = SessionLocal()
     try:
@@ -187,5 +196,4 @@ def delete_item(item_id):
 
 
 if __name__ == "__main__":
-    init_db()
     app.run(host="0.0.0.0", port=8080)
