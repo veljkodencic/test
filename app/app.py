@@ -84,7 +84,7 @@ ITEMS_GAUGE = Gauge("app_items_total", "Total items in DB")
 
 
 # ── UI ─────────────────────────────────────────────────────────────────────────
-UI_HTML = """"<!DOCTYPE html>
+UI_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
