@@ -1,7 +1,10 @@
 ################################################################################
 # k8s-apps module
 # Deploys: AWS LBC, Prometheus stack, Fluent Bit, demo app
-# DB password stored as a plain Kubernetes Secret (no Secrets Manager needed)
+# DB password stored as a plain Kubernetes Secret
+#
+# Ordering: LBC must be fully ready before Prometheus and the demo app
+# because LBC installs webhooks that intercept Service/Ingress creation.
 ################################################################################
 
 # ── Namespaces ─────────────────────────────────────────────────────────────────
@@ -93,12 +96,19 @@ resource "kubernetes_secret" "db_credentials" {
 }
 
 # ── Helm: AWS Load Balancer Controller ────────────────────────────────────────
+# Must be deployed and fully ready before anything else that creates
+# Services or Ingresses — it installs admission webhooks that intercept them.
 resource "helm_release" "aws_lbc" {
   name       = "aws-load-balancer-controller"
   repository = "https://aws.github.io/eks-charts"
   chart      = "aws-load-balancer-controller"
   version    = "1.7.1"
   namespace  = "kube-system"
+
+  # Wait until all LBC pods are Running before Terraform continues
+  wait            = true
+  wait_for_jobs   = true
+  timeout         = 300
 
   set {
     name  = "clusterName"
@@ -115,6 +125,7 @@ resource "helm_release" "aws_lbc" {
 }
 
 # ── Helm: kube-prometheus-stack ───────────────────────────────────────────────
+# depends_on LBC so the webhook is ready when Prometheus creates its Services
 resource "helm_release" "prometheus_stack" {
   name       = "kube-prometheus-stack"
   repository = "https://prometheus-community.github.io/helm-charts"
@@ -122,6 +133,7 @@ resource "helm_release" "prometheus_stack" {
   version    = "57.2.0"
   namespace  = kubernetes_namespace.monitoring.metadata[0].name
   timeout    = 600
+  wait       = true
 
   values = [yamlencode({
     prometheus = {
@@ -155,6 +167,8 @@ resource "helm_release" "prometheus_stack" {
       }
     }
   })]
+
+  depends_on = [helm_release.aws_lbc]
 }
 
 # ── Helm: Fluent Bit ──────────────────────────────────────────────────────────
@@ -164,6 +178,8 @@ resource "helm_release" "fluent_bit" {
   chart      = "fluent-bit"
   version    = "0.43.0"
   namespace  = kubernetes_namespace.logging.metadata[0].name
+  wait       = true
+  timeout    = 180
 
   values = [yamlencode({
     serviceAccount = {
@@ -183,6 +199,8 @@ resource "helm_release" "fluent_bit" {
       EOF
     }
   })]
+
+  depends_on = [helm_release.aws_lbc]
 }
 
 # ── Demo App: Deployment ───────────────────────────────────────────────────────
@@ -269,7 +287,10 @@ resource "kubernetes_deployment" "demo_app" {
     }
   }
 
-  depends_on = [kubernetes_secret.db_credentials]
+  depends_on = [
+    kubernetes_secret.db_credentials,
+    helm_release.aws_lbc,
+  ]
 }
 
 # ── Demo App: Service ──────────────────────────────────────────────────────────
@@ -289,6 +310,8 @@ resource "kubernetes_service" "demo_app" {
       protocol    = "TCP"
     }
   }
+
+  depends_on = [helm_release.aws_lbc]
 }
 
 # ── Demo App: Ingress (ALB) ────────────────────────────────────────────────────
