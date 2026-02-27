@@ -25,3 +25,8 @@ variable "admin_user_arns" {
   description = "IAM user ARNs to grant EKS cluster admin access (kubectl)"
   default     = ["arn:aws:iam::139592264087:user/veljko-admin"]
 }
+
+variable "aws_region" {
+  type    = string
+  default = "us-east-1"
+}
