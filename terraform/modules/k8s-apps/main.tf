@@ -138,13 +138,17 @@ resource "helm_release" "prometheus_stack" {
   chart      = "kube-prometheus-stack"
   version    = "57.2.0"
   namespace  = kubernetes_namespace.monitoring.metadata[0].name
-  timeout    = 600
+  timeout    = 900
   wait       = true
 
   values = [yamlencode({
     prometheus = {
       prometheusSpec = {
-        retention = "15d"
+        retention = "7d"
+        resources = {
+          requests = { cpu = "100m", memory = "256Mi" }
+          limits   = { cpu = "500m", memory = "512Mi" }
+        }
         storageSpec = {
           volumeClaimTemplate = {
             spec = {
@@ -157,11 +161,19 @@ resource "helm_release" "prometheus_stack" {
     }
     grafana = {
       adminPassword = var.grafana_admin_password
-      persistence   = { enabled = true, size = "5Gi" }
+      persistence   = { enabled = true, size = "2Gi" }
       sidecar       = { dashboards = { enabled = true, searchNamespace = "ALL" } }
+      resources = {
+        requests = { cpu = "50m", memory = "128Mi" }
+        limits   = { cpu = "200m", memory = "256Mi" }
+      }
     }
     alertmanager = {
       alertmanagerSpec = {
+        resources = {
+          requests = { cpu = "20m", memory = "64Mi" }
+          limits   = { cpu = "100m", memory = "128Mi" }
+        }
         storage = {
           volumeClaimTemplate = {
             spec = {
@@ -170,6 +182,25 @@ resource "helm_release" "prometheus_stack" {
             }
           }
         }
+      }
+    }
+    # Reduce resource usage of operator and kube-state-metrics on t3.small nodes
+    prometheusOperator = {
+      resources = {
+        requests = { cpu = "50m", memory = "64Mi" }
+        limits   = { cpu = "200m", memory = "128Mi" }
+      }
+    }
+    kubeStateMetrics = {
+      resources = {
+        requests = { cpu = "10m", memory = "32Mi" }
+        limits   = { cpu = "100m", memory = "64Mi" }
+      }
+    }
+    nodeExporter = {
+      resources = {
+        requests = { cpu = "10m", memory = "32Mi" }
+        limits   = { cpu = "100m", memory = "64Mi" }
       }
     }
   })]
