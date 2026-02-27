@@ -7,7 +7,7 @@ on:
 # Replace ACCOUNT_ID (appears twice below) with your 12-digit AWS Account ID.
 env:
   AWS_REGION:      "us-east-1"
-  ECR_REGISTRY:    "139592264087kr.ecr.us-east-1.amazonaws.com"
+  ECR_REGISTRY:    "139592264087.ecr.us-east-1.amazonaws.com"
   ECR_REPOSITORY:  "veljko-demo-app"
   EKS_CLUSTER:     "veljko-eks-dev"
   TF_STATE_BUCKET: "veljko-tfstate-139592264087"
