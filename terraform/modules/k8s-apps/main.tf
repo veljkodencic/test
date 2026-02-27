@@ -333,6 +333,7 @@ resource "kubernetes_service" "demo_app" {
   metadata {
     name      = "demo-app"
     namespace = kubernetes_namespace.demo.metadata[0].name
+    labels    = { app = "demo-app" }
   }
 
   spec {
@@ -340,6 +341,7 @@ resource "kubernetes_service" "demo_app" {
     type     = "ClusterIP"
 
     port {
+      name        = "http"
       port        = 80
       target_port = 8080
       protocol    = "TCP"
@@ -347,6 +349,36 @@ resource "kubernetes_service" "demo_app" {
   }
 
   depends_on = [helm_release.aws_lbc]
+}
+
+# ── Demo App: ServiceMonitor (Prometheus scraping) ───────────────────────────
+resource "kubernetes_manifest" "demo_app_service_monitor" {
+  manifest = {
+    apiVersion = "monitoring.coreos.com/v1"
+    kind       = "ServiceMonitor"
+    metadata = {
+      name      = "demo-app"
+      namespace = "monitoring"
+      labels = {
+        release = "kube-prometheus-stack"
+      }
+    }
+    spec = {
+      namespaceSelector = {
+        matchNames = ["demo"]
+      }
+      selector = {
+        matchLabels = { app = "demo-app" }
+      }
+      endpoints = [{
+        port     = "http"
+        path     = "/metrics"
+        interval = "15s"
+      }]
+    }
+  }
+
+  depends_on = [helm_release.prometheus_stack, kubernetes_service.demo_app]
 }
 
 # ── Demo App: Ingress (ALB) ────────────────────────────────────────────────────

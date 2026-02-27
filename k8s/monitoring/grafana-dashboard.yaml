@@ -11,26 +11,286 @@ data:
       "title": "veljko — Demo App",
       "uid": "veljko-demo",
       "refresh": "30s",
+      "time": { "from": "now-1h", "to": "now" },
+      "schemaVersion": 36,
       "panels": [
+
         {
-          "id": 1, "title": "Request Rate (req/s)", "type": "stat",
-          "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
-          "targets": [{ "expr": "sum(rate(http_requests_total[5m]))" }]
+          "id": 1,
+          "title": "Request Rate",
+          "description": "Total HTTP requests per second",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "lineWidth": 2, "fillOpacity": 10 },
+              "unit": "reqps"
+            }
+          },
+          "targets": [
+            {
+              "expr": "sum by(endpoint) (rate(http_requests_total{status_code!~\"5..\"}[5m]))",
+              "legendFormat": "{{endpoint}} — ok"
+            },
+            {
+              "expr": "sum by(endpoint) (rate(http_requests_total{status_code=~\"5..\"}[5m]))",
+              "legendFormat": "{{endpoint}} — error"
+            }
+          ]
         },
+
         {
-          "id": 2, "title": "Error Rate (%)", "type": "stat",
-          "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
-          "targets": [{ "expr": "sum(rate(http_requests_total{status_code=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m])) * 100" }]
+          "id": 2,
+          "title": "Latency Percentiles",
+          "description": "p50, p95, p99 response time",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "lineWidth": 2, "fillOpacity": 10 },
+              "unit": "s"
+            }
+          },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.50, sum by(le) (rate(http_request_duration_seconds_bucket[5m])))",
+              "legendFormat": "p50"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum by(le) (rate(http_request_duration_seconds_bucket[5m])))",
+              "legendFormat": "p95"
+            },
+            {
+              "expr": "histogram_quantile(0.99, sum by(le) (rate(http_request_duration_seconds_bucket[5m])))",
+              "legendFormat": "p99"
+            }
+          ]
         },
+
         {
-          "id": 3, "title": "p95 Latency (s)", "type": "stat",
-          "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
-          "targets": [{ "expr": "histogram_quantile(0.95, sum by(le) (rate(http_request_duration_seconds_bucket[5m])))" }]
+          "id": 3,
+          "title": "Total Requests/s",
+          "type": "stat",
+          "gridPos": { "x": 0, "y": 8, "w": 4, "h": 4 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 10 },
+                  { "color": "red", "value": 50 }
+                ]
+              }
+            }
+          },
+          "targets": [
+            { "expr": "sum(rate(http_requests_total[5m]))", "legendFormat": "req/s" }
+          ]
         },
+
         {
-          "id": 4, "title": "Items in DB", "type": "stat",
-          "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
-          "targets": [{ "expr": "app_items_total" }]
+          "id": 4,
+          "title": "Error Rate",
+          "type": "stat",
+          "gridPos": { "x": 4, "y": 8, "w": 4, "h": 4 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 1 },
+                  { "color": "red", "value": 5 }
+                ]
+              }
+            }
+          },
+          "targets": [
+            {
+              "expr": "sum(rate(http_requests_total{status_code=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m])) * 100",
+              "legendFormat": "error %"
+            }
+          ]
+        },
+
+        {
+          "id": 5,
+          "title": "p95 Latency",
+          "type": "stat",
+          "gridPos": { "x": 8, "y": 8, "w": 4, "h": 4 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 0.5 },
+                  { "color": "red", "value": 1 }
+                ]
+              }
+            }
+          },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum by(le) (rate(http_request_duration_seconds_bucket[5m])))",
+              "legendFormat": "p95"
+            }
+          ]
+        },
+
+        {
+          "id": 6,
+          "title": "Items in DB",
+          "type": "stat",
+          "gridPos": { "x": 12, "y": 8, "w": 4, "h": 4 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "steps": [{ "color": "blue", "value": null }]
+              }
+            }
+          },
+          "targets": [
+            { "expr": "app_items_total", "legendFormat": "items" }
+          ]
+        },
+
+        {
+          "id": 7,
+          "title": "DB Connection Errors",
+          "type": "stat",
+          "gridPos": { "x": 16, "y": 8, "w": 4, "h": 4 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "red", "value": 1 }
+                ]
+              }
+            }
+          },
+          "targets": [
+            { "expr": "increase(db_connection_errors_total[5m])", "legendFormat": "errors" }
+          ]
+        },
+
+        {
+          "id": 8,
+          "title": "Active Pods",
+          "type": "stat",
+          "gridPos": { "x": 20, "y": 8, "w": 4, "h": 4 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "yellow", "value": 1 },
+                  { "color": "green", "value": 2 }
+                ]
+              }
+            }
+          },
+          "targets": [
+            {
+              "expr": "count(kube_pod_status_ready{namespace=\"demo\", condition=\"true\"})",
+              "legendFormat": "pods"
+            }
+          ]
+        },
+
+        {
+          "id": 9,
+          "title": "DB Query Latency",
+          "description": "p95 latency per operation type",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "color": { "mode": "palette-classic" },
+              "custom": { "lineWidth": 2, "fillOpacity": 10 }
+            }
+          },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum by(le, operation) (rate(db_query_duration_seconds_bucket[5m])))",
+              "legendFormat": "{{operation}} p95"
+            }
+          ]
+        },
+
+        {
+          "id": 10,
+          "title": "Pod CPU Usage",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "cores",
+              "color": { "mode": "palette-classic" },
+              "custom": { "lineWidth": 2, "fillOpacity": 10 }
+            }
+          },
+          "targets": [
+            {
+              "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{namespace=\"demo\", container=\"demo-app\"}[5m]))",
+              "legendFormat": "{{pod}}"
+            }
+          ]
+        },
+
+        {
+          "id": 11,
+          "title": "Pod Memory Usage",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 20, "w": 12, "h": 8 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "color": { "mode": "palette-classic" },
+              "custom": { "lineWidth": 2, "fillOpacity": 10 }
+            }
+          },
+          "targets": [
+            {
+              "expr": "sum by(pod) (container_memory_working_set_bytes{namespace=\"demo\", container=\"demo-app\"})",
+              "legendFormat": "{{pod}}"
+            }
+          ]
+        },
+
+        {
+          "id": 12,
+          "title": "HTTP Requests by Status Code",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 20, "w": 12, "h": 8 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "color": { "mode": "palette-classic" },
+              "custom": { "lineWidth": 2, "fillOpacity": 10 }
+            }
+          },
+          "targets": [
+            {
+              "expr": "sum by(status_code) (rate(http_requests_total[5m]))",
+              "legendFormat": "HTTP {{status_code}}"
+            }
+          ]
         }
+
       ]
     }
