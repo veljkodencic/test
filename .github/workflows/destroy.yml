@@ -115,6 +115,16 @@ jobs:
           done
         continue-on-error: true
 
+      # ── Step 3b: Delete CloudWatch log groups ───────────────────────────────────
+      # These persist after destroy and cause ResourceAlreadyExistsException on redeploy.
+      - name: Delete CloudWatch log groups
+        run: |
+          for lg in /aws/eks/veljko-eks-dev/cluster /eks/veljko-eks-dev/app; do
+            echo "Deleting log group: $lg"
+            aws logs delete-log-group --log-group-name "$lg" --region ${{ env.AWS_REGION }} 2>/dev/null || true
+          done
+        continue-on-error: true
+
       # ── Step 4: Terraform destroy ────────────────────────────────────────────
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
