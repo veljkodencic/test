@@ -140,6 +140,12 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Delete leftover CloudWatch log groups
+        run: |
+          for lg in /aws/eks/veljko-eks-dev/cluster /eks/veljko-eks-dev/app; do
+            aws logs delete-log-group --log-group-name "$lg" --region ${{ env.AWS_REGION }} 2>/dev/null || true
+          done
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
