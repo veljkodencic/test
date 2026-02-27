@@ -1,7 +1,7 @@
 name: Destroy — veljko-infra
 
 on:
-  workflow_dispatch:  # manual trigger only — never runs automatically
+  workflow_dispatch:
 
 env:
   AWS_REGION:      "us-east-1"
@@ -13,7 +13,7 @@ jobs:
   destroy:
     name: Terraform Destroy
     runs-on: ubuntu-latest
-    environment: destroy  # requires manual approval in GitHub before running
+    environment: destroy
     permissions:
       id-token: write
       contents: read
@@ -28,6 +28,94 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
+      # ── Step 1: Connect kubectl ──────────────────────────────────────────────
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --region ${{ env.AWS_REGION }} \
+            --name ${{ env.EKS_CLUSTER }}
+        continue-on-error: true
+
+      # ── Step 2: Clean up K8s resources with finalizers ───────────────────────
+      - name: Delete Ingress and HPA
+        run: |
+          kubectl delete ingress demo-app -n demo --ignore-not-found --timeout=60s
+          kubectl delete hpa demo-app -n demo --ignore-not-found --timeout=60s
+        continue-on-error: true
+
+      - name: Uninstall Helm releases
+        run: |
+          helm uninstall aws-load-balancer-controller -n kube-system --ignore-not-found --timeout=120s || true
+          helm uninstall kube-prometheus-stack -n monitoring --ignore-not-found --timeout=120s || true
+          helm uninstall fluent-bit -n logging --ignore-not-found --timeout=60s || true
+        continue-on-error: true
+
+      - name: Force-remove stuck namespace finalizers
+        run: |
+          for ns in demo monitoring logging; do
+            STATUS=$(kubectl get namespace $ns -o jsonpath='{.status.phase}' 2>/dev/null || echo "NotFound")
+            if [ "$STATUS" = "Terminating" ]; then
+              echo "Force-removing finalizers from namespace: $ns"
+              kubectl get namespace $ns -o json \
+                | python3 -c "import sys,json; d=json.load(sys.stdin); d['spec']['finalizers']=[]; print(json.dumps(d))" \
+                | kubectl replace --raw /api/v1/namespaces/$ns/finalize -f -
+            fi
+          done
+        continue-on-error: true
+
+      # ── Step 3: Delete ALB and VPC dependencies Terraform doesn't track ──────
+      # The LBC creates an ALB + security groups outside of Terraform state.
+      # These must be deleted before the VPC can be removed.
+      - name: Delete ALB and leftover VPC resources
+        run: |
+          VPC_ID=$(aws ec2 describe-vpcs \
+            --region ${{ env.AWS_REGION }} \
+            --filters "Name=tag:Name,Values=veljko-vpc" \
+            --query "Vpcs[0].VpcId" \
+            --output text 2>/dev/null || echo "")
+
+          if [ -z "$VPC_ID" ] || [ "$VPC_ID" = "None" ]; then
+            echo "VPC not found — skipping"
+            exit 0
+          fi
+
+          echo "Found VPC: $VPC_ID"
+
+          # Delete any load balancers in this VPC
+          LBS=$(aws elbv2 describe-load-balancers \
+            --region ${{ env.AWS_REGION }} \
+            --query "LoadBalancers[?VpcId=='$VPC_ID'].LoadBalancerArn" \
+            --output text)
+          for arn in $LBS; do
+            echo "Deleting LB: $arn"
+            aws elbv2 delete-load-balancer --load-balancer-arn "$arn" --region ${{ env.AWS_REGION }}
+          done
+          [ -n "$LBS" ] && sleep 30
+
+          # Delete leftover security groups
+          SGS=$(aws ec2 describe-security-groups \
+            --region ${{ env.AWS_REGION }} \
+            --filters "Name=vpc-id,Values=$VPC_ID" \
+            --query "SecurityGroups[?GroupName!='default'].GroupId" \
+            --output text)
+          for sg in $SGS; do
+            echo "Deleting SG: $sg"
+            aws ec2 delete-security-group --group-id "$sg" --region ${{ env.AWS_REGION }} 2>/dev/null || true
+          done
+
+          # Delete leftover network interfaces
+          ENIS=$(aws ec2 describe-network-interfaces \
+            --region ${{ env.AWS_REGION }} \
+            --filters "Name=vpc-id,Values=$VPC_ID" \
+            --query "NetworkInterfaces[].NetworkInterfaceId" \
+            --output text)
+          for eni in $ENIS; do
+            echo "Deleting ENI: $eni"
+            aws ec2 delete-network-interface --network-interface-id "$eni" --region ${{ env.AWS_REGION }} 2>/dev/null || true
+          done
+        continue-on-error: true
+
+      # ── Step 4: Terraform destroy ────────────────────────────────────────────
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -48,3 +136,10 @@ jobs:
           TF_VAR_grafana_admin_password: ${{ secrets.TF_VAR_GRAFANA_PASSWORD }}
           TF_VAR_app_image:              "public.ecr.aws/nginx/nginx:latest"
         run: terraform destroy -auto-approve
+
+      # ── Step 5: Summary ──────────────────────────────────────────────────────
+      - name: Summary
+        run: |
+          echo "## Destroy complete" >> $GITHUB_STEP_SUMMARY
+          echo "All veljko infrastructure has been removed." >> $GITHUB_STEP_SUMMARY
+          echo "To redeploy: run the CI/CD workflow." >> $GITHUB_STEP_SUMMARY

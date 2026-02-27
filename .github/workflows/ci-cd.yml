@@ -1,10 +1,6 @@
 name: CI/CD — veljko-infra
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:  # enables Run workflow button in GitHub Actions
 
 # ── CHANGE #2 and #3 ─────────────────────────────────────────────────────────
