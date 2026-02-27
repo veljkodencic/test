@@ -7,7 +7,7 @@ on:
 # Replace ACCOUNT_ID (appears twice below) with your 12-digit AWS Account ID.
 env:
   AWS_REGION:      "us-east-1"
-  ECR_REGISTRY:    "139592264087.dkr.ecr.us-east-1.amazonaws.com"
+  ECR_REGISTRY:    "139592264087kr.ecr.us-east-1.amazonaws.com"
   ECR_REPOSITORY:  "veljko-demo-app"
   EKS_CLUSTER:     "veljko-eks-dev"
   TF_STATE_BUCKET: "veljko-tfstate-139592264087"
@@ -145,6 +145,20 @@ jobs:
           for lg in /aws/eks/veljko-eks-dev/cluster /eks/veljko-eks-dev/app; do
             aws logs delete-log-group --log-group-name "$lg" --region ${{ env.AWS_REGION }} 2>/dev/null || true
           done
+
+      - name: Import existing EKS access entries into Terraform state
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          # If access entry already exists (e.g. created manually), import it
+          # so Terraform doesn't try to create it again and fail with 409.
+          USER_ARN="arn:aws:iam::139592264087:user/veljko-admin"
+          CLUSTER="veljko-eks-dev"
+          EXISTS=$(aws eks describe-access-entry             --cluster-name $CLUSTER             --principal-arn $USER_ARN             --region ${{ env.AWS_REGION }}             --query "accessEntry.principalArn"             --output text 2>/dev/null || echo "")
+          if [ -n "$EXISTS" ]; then
+            echo "Access entry exists, importing into Terraform state..."
+            terraform import               "module.eks.aws_eks_access_entry.admin_users["$USER_ARN"]"               "${CLUSTER}:${USER_ARN}" 2>/dev/null || true
+          fi
+        continue-on-error: true
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
