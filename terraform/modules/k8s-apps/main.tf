@@ -351,36 +351,6 @@ resource "kubernetes_service" "demo_app" {
   depends_on = [helm_release.aws_lbc]
 }
 
-# ── Demo App: ServiceMonitor (Prometheus scraping) ───────────────────────────
-resource "kubernetes_manifest" "demo_app_service_monitor" {
-  manifest = {
-    apiVersion = "monitoring.coreos.com/v1"
-    kind       = "ServiceMonitor"
-    metadata = {
-      name      = "demo-app"
-      namespace = "monitoring"
-      labels = {
-        release = "kube-prometheus-stack"
-      }
-    }
-    spec = {
-      namespaceSelector = {
-        matchNames = ["demo"]
-      }
-      selector = {
-        matchLabels = { app = "demo-app" }
-      }
-      endpoints = [{
-        port     = "http"
-        path     = "/metrics"
-        interval = "15s"
-      }]
-    }
-  }
-
-  depends_on = [helm_release.prometheus_stack, kubernetes_service.demo_app]
-}
-
 # ── Demo App: Ingress (ALB) ────────────────────────────────────────────────────
 resource "kubernetes_ingress_v1" "demo_app" {
   metadata {

@@ -204,6 +204,9 @@ jobs:
             --region ${{ env.AWS_REGION }} \
             --name ${{ env.EKS_CLUSTER }}
 
+      - name: Apply ServiceMonitor
+        run: kubectl apply -f k8s/monitoring/service-monitor.yaml
+
       - name: Wait for rollout
         run: kubectl rollout status deployment/demo-app -n demo --timeout=300s || true
 
