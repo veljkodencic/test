@@ -215,8 +215,4 @@ resource "aws_iam_role_policy_attachment" "ebs_csi" {
 }
 
 # ── CloudWatch Log Group ───────────────────────────────────────────────────────
-resource "aws_cloudwatch_log_group" "cluster" {
-  name              = "/aws/eks/${var.cluster_name}/cluster"
-  retention_in_days = 30
-  tags              = var.tags
-}
+
