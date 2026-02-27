@@ -43,14 +43,10 @@ resource "aws_iam_role" "albc" {
   tags               = var.tags
 }
 
-resource "aws_iam_role_policy_attachment" "albc" {
-  role       = aws_iam_role.albc.name
-  policy_arn = "arn:aws:iam::aws:policy/ElasticLoadBalancingFullAccess"
-}
-
-resource "aws_iam_role_policy_attachment" "albc_ec2" {
-  role       = aws_iam_role.albc.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2FullAccess"
+resource "aws_iam_role_policy" "albc" {
+  name   = "${var.cluster_name}-albc-policy"
+  role   = aws_iam_role.albc.id
+  policy = file("${path.module}/albc-iam-policy.json")
 }
 
 
