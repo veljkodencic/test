@@ -110,10 +110,39 @@ resource "aws_eks_cluster" "this" {
     endpoint_private_access = true
   }
 
+  # Use API_AND_CONFIG_MAP so we can grant IAM users access via access entries
+  access_config {
+    authentication_mode                         = "API_AND_CONFIG_MAP"
+    bootstrap_cluster_creator_admin_permissions = true
+  }
+
   enabled_cluster_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
 
   tags       = var.tags
   depends_on = [aws_iam_role_policy_attachment.cluster_policy]
+}
+
+# ── Grant IAM users kubectl access ────────────────────────────────────────────
+resource "aws_eks_access_entry" "admin_users" {
+  for_each = toset(var.admin_user_arns)
+
+  cluster_name  = aws_eks_cluster.this.name
+  principal_arn = each.value
+  type          = "STANDARD"
+}
+
+resource "aws_eks_access_policy_association" "admin_users" {
+  for_each = toset(var.admin_user_arns)
+
+  cluster_name  = aws_eks_cluster.this.name
+  principal_arn = each.value
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+
+  access_scope {
+    type = "cluster"
+  }
+
+  depends_on = [aws_eks_access_entry.admin_users]
 }
 
 # ── OIDC Provider (for IRSA) ───────────────────────────────────────────────────

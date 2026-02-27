@@ -43,3 +43,9 @@ variable "tags" {
   type    = map(string)
   default = {}
 }
+
+variable "admin_user_arns" {
+  type        = list(string)
+  description = "List of IAM user ARNs to grant EKS cluster admin access"
+  default     = []
+}

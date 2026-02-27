@@ -19,3 +19,9 @@ variable "app_image" {
   description = "Full ECR image URI. Built and set automatically by CI/CD."
   default     = "public.ecr.aws/nginx/nginx:latest" # placeholder until first real build
 }
+
+variable "admin_user_arns" {
+  type        = list(string)
+  description = "IAM user ARNs to grant EKS cluster admin access (kubectl)"
+  default     = ["arn:aws:iam::139592264087:user/veljko-admin"]
+}
