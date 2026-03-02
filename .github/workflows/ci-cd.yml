@@ -10,7 +10,7 @@ env:
   ECR_REGISTRY:    "139592264087.dkr.ecr.us-east-1.amazonaws.com"
   ECR_REPOSITORY:  "veljko-demo-app"
   EKS_CLUSTER:     "veljko-eks-dev"
-  TF_STATE_BUCKET: "veljko-tfstate-139592264087
+  TF_STATE_BUCKET: "veljko-tfstate-139592264087"
   TF_WORKING_DIR:  "terraform/environments/dev"
 
 jobs:
