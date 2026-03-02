@@ -178,6 +178,8 @@ VPC 10.0.0.0/16
 
 ## CI/CD Pipeline
 
+Duration: ≈ 18 minutes
+
 Triggered manually: **GitHub Actions → CI/CD — veljko-infra → Run workflow**
 
 ```
@@ -229,6 +231,8 @@ kubectl port-forward -n monitoring svc/kube-prometheus-stack-prometheus 9091:909
 ---
 
 ## Destroy
+
+Duration: ≈ 10 minutes
 
 Triggered manually: **GitHub Actions → Destroy — veljko-infra → Run workflow**
 Requires approval from the `destroy` GitHub environment (Settings → Environments → destroy → required reviewers).
