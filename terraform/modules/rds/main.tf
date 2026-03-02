@@ -1,4 +1,4 @@
-# ── Security Group ─────────────────────────────────────────────────────────────
+# Security Group
 resource "aws_security_group" "rds" {
   name        = "${var.name}-rds-sg"
   description = "Allow PostgreSQL from EKS nodes only"
@@ -30,14 +30,14 @@ resource "aws_security_group" "rds" {
   tags = merge(var.tags, { Name = "${var.name}-rds-sg" })
 }
 
-# ── Subnet Group ───────────────────────────────────────────────────────────────
+# Subnet Group
 resource "aws_db_subnet_group" "this" {
   name       = "${var.name}-db-subnet-group"
   subnet_ids = var.private_subnet_ids
   tags       = merge(var.tags, { Name = "${var.name}-db-subnet-group" })
 }
 
-# ── Parameter Group ────────────────────────────────────────────────────────────
+# Parameter Group
 resource "aws_db_parameter_group" "this" {
   name   = "${var.name}-pg15"
   family = "postgres15"
@@ -54,7 +54,7 @@ resource "aws_db_parameter_group" "this" {
   tags = var.tags
 }
 
-# ── Secrets Manager — stores DB password ──────────────────────────────────────
+#Secrets Manager — stores DB password
 resource "aws_secretsmanager_secret" "db_password" {
   name                    = "${var.name}/rds/master-password"
   description             = "RDS master password for ${var.name}"
@@ -67,14 +67,13 @@ resource "aws_secretsmanager_secret_version" "db_password" {
   secret_string = var.db_password
 }
 
-# ── RDS Instance — db.t3.micro (allowed instance type) ────────────────────────
+# RDS Instance — db.t3.micro
 resource "aws_db_instance" "this" {
   identifier = "${var.name}-postgres"
 
   engine         = "postgres"
   engine_version = "15.7"
 
-  # Allowed RDS instance types: db.t2.micro/small, db.t3.micro/small, db.t4g.micro/small
   instance_class = var.instance_class
 
   db_name  = var.db_name
@@ -109,7 +108,7 @@ resource "aws_db_instance" "this" {
   tags = var.tags
 }
 
-# ── Enhanced Monitoring IAM Role ───────────────────────────────────────────────
+# Enhanced Monitoring IAM Role
 data "aws_iam_policy_document" "rds_monitoring_assume" {
   statement {
     effect  = "Allow"

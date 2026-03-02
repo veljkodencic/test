@@ -28,7 +28,7 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # ── Step 1: Connect kubectl ──────────────────────────────────────────────
+      # Step 1: Connect kubectl
       - name: Update kubeconfig
         run: |
           aws eks update-kubeconfig \
@@ -36,7 +36,7 @@ jobs:
             --name ${{ env.EKS_CLUSTER }}
         continue-on-error: true
 
-      # ── Step 2: Clean up K8s resources with finalizers ───────────────────────
+      # Step 2: Clean up K8s resources
       - name: Delete Ingress and HPA
         run: |
           kubectl delete ingress demo-app -n demo --ignore-not-found --timeout=60s
@@ -63,7 +63,7 @@ jobs:
           done
         continue-on-error: true
 
-      # ── Step 3: Delete ALB and VPC dependencies Terraform doesn't track ──────
+      # Step 3: Delete ALB and VPC dependencies Terraform doesn't track
       # The LBC creates an ALB + security groups outside of Terraform state.
       # These must be deleted before the VPC can be removed.
       - name: Delete ALB and leftover VPC resources
@@ -115,8 +115,7 @@ jobs:
           done
         continue-on-error: true
 
-      # ── Step 3b: Delete CloudWatch log groups ───────────────────────────────────
-      # These persist after destroy and cause ResourceAlreadyExistsException on redeploy.
+      # Step 3b: Delete CloudWatch log groups
       - name: Delete CloudWatch log groups
         run: |
           for lg in /aws/eks/veljko-eks-dev/cluster /eks/veljko-eks-dev/app; do
@@ -125,7 +124,7 @@ jobs:
           done
         continue-on-error: true
 
-      # ── Step 4: Terraform destroy ────────────────────────────────────────────
+      # Step 4: Terraform destroy
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -147,7 +146,7 @@ jobs:
           TF_VAR_app_image:              "public.ecr.aws/nginx/nginx:latest"
         run: terraform destroy -auto-approve
 
-      # ── Step 5: Summary ──────────────────────────────────────────────────────
+      # Step 5: Summary
       - name: Summary
         run: |
           echo "## Destroy complete" >> $GITHUB_STEP_SUMMARY

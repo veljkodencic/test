@@ -1,10 +1,9 @@
 name: CI/CD — veljko-infra
 
 on:
-  workflow_dispatch:  # manual trigger only — use Run workflow button in GitHub Actions
+  workflow_dispatch:
 
-# ── CHANGE #2 and #3 ─────────────────────────────────────────────────────────
-# Replace ACCOUNT_ID (appears twice below) with your 12-digit AWS Account ID.
+
 env:
   AWS_REGION:      "us-east-1"
   ECR_REGISTRY:    "139592264087.dkr.ecr.us-east-1.amazonaws.com"
@@ -14,7 +13,7 @@ env:
   TF_WORKING_DIR:  "terraform/environments/dev"
 
 jobs:
-  # ── Build & push Docker image ──────────────────────────────────────────────
+  #Build and push docker images
   build:
     name: Build & Push Image
     runs-on: ubuntu-latest
@@ -56,7 +55,7 @@ jobs:
 
           echo "uri=$IMAGE_URI" >> $GITHUB_OUTPUT
 
-  # ── Terraform plan ─────────────────────────────────────────────────────────
+  # terraform plan stage
   terraform-plan:
     name: Terraform Plan
     runs-on: ubuntu-latest
@@ -119,7 +118,7 @@ jobs:
               body: `## Terraform Plan\n\`\`\`\n${truncated}\n\`\`\``
             });
 
-  # ── Terraform apply (main branch only) ────────────────────────────────────
+  # terraform apply proccess
   terraform-apply:
     name: Terraform Apply
     runs-on: ubuntu-latest
@@ -197,7 +196,7 @@ jobs:
           TF_VAR_app_image:              "${{ needs.build.outputs.image_uri }}"
         run: terraform apply -auto-approve
 
-  # ── Smoke test ─────────────────────────────────────────────────────────────
+  # smoke tests
   smoke-test:
     name: Smoke Test
     runs-on: ubuntu-latest

@@ -1,12 +1,3 @@
-################################################################################
-# Root module — veljko dev environment
-#
-# Sandbox constraints respected:
-#   - Region:        us-east-1 only
-#   - EKS nodes:     t3.small  (allowed: t3.small/medium, t3a.small/medium)
-#   - RDS:           db.t3.micro  (allowed: db.t2/t3.micro/small, db.t4g.micro/small)
-#   - No DynamoDB:   S3 backend without state lock table
-################################################################################
 
 terraform {
   required_version = ">= 1.6"
@@ -30,9 +21,6 @@ terraform {
     }
   }
 
-  # ── CHANGE #1 ────────────────────────────────────────────────────────────────
-  # Replace ACCOUNT_ID with your 12-digit AWS Account ID.
-  # Get it by running: aws sts get-caller-identity --query Account --output text
   backend "s3" {
     bucket  = "veljko-tfstate-139592264087"
     key     = "veljko/dev/terraform.tfstate"
@@ -80,7 +68,7 @@ locals {
   }
 }
 
-# ── VPC ────────────────────────────────────────────────────────────────────────
+# VPC
 module "vpc" {
   source       = "../../modules/vpc"
   name         = "veljko"
@@ -89,7 +77,7 @@ module "vpc" {
   tags         = local.common_tags
 }
 
-# ── EKS ────────────────────────────────────────────────────────────────────────
+# EKS
 module "eks" {
   source             = "../../modules/eks"
   cluster_name       = "veljko-eks-dev"
@@ -107,7 +95,7 @@ module "eks" {
   tags                = local.common_tags
 }
 
-# ── RDS PostgreSQL ─────────────────────────────────────────────────────────────
+# RDS PostgreSQL
 module "rds" {
   source                     = "../../modules/rds"
   name                       = "veljko-dev"
@@ -115,7 +103,6 @@ module "rds" {
   private_subnet_ids         = module.vpc.private_subnet_ids
   eks_node_security_group_id = module.eks.node_security_group_id
 
-  # Allowed RDS instance types: db.t2.micro/small, db.t3.micro/small, db.t4g.micro/small
   instance_class = "db.t3.micro"
   vpc_cidr       = "10.0.0.0/16"
 
@@ -125,7 +112,7 @@ module "rds" {
   tags        = local.common_tags
 }
 
-# ── K8s Apps ───────────────────────────────────────────────────────────────────
+# K8s Apps
 module "k8s_apps" {
   source = "../../modules/k8s-apps"
 

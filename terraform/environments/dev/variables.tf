@@ -1,6 +1,3 @@
-# These three variables are NEVER stored in files.
-# Set locally:   export TF_VAR_db_password="..."
-# In CI/CD:      stored as GitHub Secrets (see ci-cd.yml)
 
 variable "db_password" {
   type        = string

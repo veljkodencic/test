@@ -18,7 +18,7 @@ resource "aws_internet_gateway" "this" {
   tags   = merge(var.tags, { Name = "${var.name}-igw" })
 }
 
-# ── Public subnets (ALB, NAT GW) ───────────────────────────────────────────────
+# Public subnets (ALB, NAT GW)
 resource "aws_subnet" "public" {
   count                   = length(local.azs)
   vpc_id                  = aws_vpc.this.id
@@ -33,7 +33,7 @@ resource "aws_subnet" "public" {
   })
 }
 
-# ── Private subnets (EKS nodes, RDS) ──────────────────────────────────────────
+#Private subnets (EKS nodes, RDS)
 resource "aws_subnet" "private" {
   count             = length(local.azs)
   vpc_id            = aws_vpc.this.id
@@ -47,7 +47,7 @@ resource "aws_subnet" "private" {
   })
 }
 
-# ── Single NAT Gateway (cost optimisation — dev only) ─────────────────────────
+# Single NAT Gateway
 resource "aws_eip" "nat" {
   domain = "vpc"
   tags   = merge(var.tags, { Name = "${var.name}-nat-eip" })
@@ -60,7 +60,7 @@ resource "aws_nat_gateway" "this" {
   depends_on    = [aws_internet_gateway.this]
 }
 
-# ── Route tables ───────────────────────────────────────────────────────────────
+# Route tables
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.this.id
   route {

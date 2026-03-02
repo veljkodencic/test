@@ -1,4 +1,4 @@
-# ── Cluster IAM Role ───────────────────────────────────────────────────────────
+# Cluster IAM Role
 data "aws_iam_policy_document" "cluster_assume_role" {
   statement {
     effect  = "Allow"
@@ -21,7 +21,7 @@ resource "aws_iam_role_policy_attachment" "cluster_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
 }
 
-# ── Node IAM Role ──────────────────────────────────────────────────────────────
+# Node IAM Role
 data "aws_iam_policy_document" "node_assume_role" {
   statement {
     effect  = "Allow"
@@ -50,7 +50,7 @@ resource "aws_iam_role_policy_attachment" "node_policies" {
   policy_arn = each.value
 }
 
-# ── Security Groups ────────────────────────────────────────────────────────────
+#Security Groups
 resource "aws_security_group" "cluster" {
   name        = "${var.cluster_name}-cluster-sg"
   description = "EKS control plane SG"
@@ -97,7 +97,7 @@ resource "aws_security_group" "nodes" {
   tags = merge(var.tags, { Name = "${var.cluster_name}-nodes-sg" })
 }
 
-# ── EKS Cluster ────────────────────────────────────────────────────────────────
+# EKS Cluster
 resource "aws_eks_cluster" "this" {
   name     = var.cluster_name
   version  = var.kubernetes_version
@@ -122,7 +122,7 @@ resource "aws_eks_cluster" "this" {
   depends_on = [aws_iam_role_policy_attachment.cluster_policy]
 }
 
-# ── Grant IAM users kubectl access ────────────────────────────────────────────
+# Grant IAM users kubectl access
 resource "aws_eks_access_entry" "admin_users" {
   for_each = toset(var.admin_user_arns)
 
@@ -145,7 +145,7 @@ resource "aws_eks_access_policy_association" "admin_users" {
   depends_on = [aws_eks_access_entry.admin_users]
 }
 
-# ── OIDC Provider (for IRSA) ───────────────────────────────────────────────────
+# OIDC Provider (for IRSA)
 data "tls_certificate" "cluster" {
   url = aws_eks_cluster.this.identity[0].oidc[0].issuer
 }
@@ -157,7 +157,7 @@ resource "aws_iam_openid_connect_provider" "cluster" {
   tags            = var.tags
 }
 
-# ── Managed Node Group — t3.small (allowed instance type) ─────────────────────
+# Managed Node Group — t3.small
 resource "aws_eks_node_group" "this" {
   cluster_name    = aws_eks_cluster.this.name
   node_group_name = "${var.cluster_name}-nodes"
@@ -183,7 +183,7 @@ resource "aws_eks_node_group" "this" {
   depends_on = [aws_iam_role_policy_attachment.node_policies]
 }
 
-# ── Core Addons ────────────────────────────────────────────────────────────────
+#Core Addons
 resource "aws_eks_addon" "vpc_cni" {
   cluster_name                = aws_eks_cluster.this.name
   addon_name                  = "vpc-cni"
@@ -215,7 +215,7 @@ resource "aws_eks_addon" "ebs_csi" {
   depends_on                  = [aws_eks_node_group.this]
 }
 
-# ── IRSA: EBS CSI Driver ───────────────────────────────────────────────────────
+#IRSA: EBS CSI Driver
 data "aws_iam_policy_document" "ebs_csi_assume" {
   statement {
     effect  = "Allow"
@@ -243,5 +243,4 @@ resource "aws_iam_role_policy_attachment" "ebs_csi" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
 }
 
-# ── CloudWatch Log Group ───────────────────────────────────────────────────────
 

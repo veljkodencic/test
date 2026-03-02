@@ -3,8 +3,6 @@
 AWS EKS + RDS infrastructure for the SRE assessment.
 All resources prefixed `veljko-*`, deployed in `us-east-1`.
 
-> **Start here:** [WHAT_TO_CHANGE.md](WHAT_TO_CHANGE.md)
-
 ## Architecture
 
 ```
@@ -36,8 +34,9 @@ RDS PostgreSQL — veljko-dev-postgres  (db.t3.micro, private subnet)
 
 ```
 veljko-infra/
-├── WHAT_TO_CHANGE.md              ← start here
-├── .github/workflows/ci-cd.yml   ← change #2 and #3
+├── .github/workflows/
+│   ├── ci-cd.yaml
+│   └── destroy.yaml
 ├── app/
 │   ├── app.py
 │   ├── Dockerfile
@@ -45,14 +44,27 @@ veljko-infra/
 ├── k8s/monitoring/
 │   ├── prometheus-rules.yaml
 │   └── grafana-dashboard.yaml
+│   └── service-monitor.yaml
 └── terraform/
     ├── environments/dev/
-    │   ├── main.tf                ← change #1
+    │   ├── main.tf                
     │   ├── variables.tf
     │   └── outputs.tf
     └── modules/
         ├── vpc/
+        │   ├── main.tf                
+        │   ├── variables.tf
+        │   └── outputs.tf
         ├── eks/
+        │   ├── main.tf                
+        │   ├── variables.tf
+        │   └── outputs.tf
         ├── rds/
+        │   ├── main.tf                
+        │   ├── variables.tf
+        │   └── outputs.tf
         └── k8s-apps/
+            ├── main.tf                
+            ├── variables.tf
+            └── outputs.tf
 ```
