@@ -1,12 +1,11 @@
 name: CI/CD — veljko-infra
 
 on:
-#  push:
- #    branches: [ main ]
+  #  push:
+  #    branches: [ main ]
   #pull_request:
-   # branches: [ main ]
-  workflow_dispatch:
-
+  # branches: [ main ]
+  workflow_dispatch:  # manual trigger only — use Run workflow button in GitHub Actions
 
 env:
   AWS_REGION:      "us-east-1"
@@ -17,7 +16,7 @@ env:
   TF_WORKING_DIR:  "terraform/environments/dev"
 
 jobs:
-  #Build and push docker images
+  # ── Build & push Docker image ──────────────────────────────────────────────
   build:
     name: Build & Push Image
     runs-on: ubuntu-latest
@@ -59,7 +58,7 @@ jobs:
 
           echo "uri=$IMAGE_URI" >> $GITHUB_OUTPUT
 
-  # terraform plan stage
+  # ── Terraform plan ─────────────────────────────────────────────────────────
   terraform-plan:
     name: Terraform Plan
     runs-on: ubuntu-latest
@@ -122,7 +121,7 @@ jobs:
               body: `## Terraform Plan\n\`\`\`\n${truncated}\n\`\`\``
             });
 
-  # terraform apply proccess
+  # ── Terraform apply (main branch only) ────────────────────────────────────
   terraform-apply:
     name: Terraform Apply
     runs-on: ubuntu-latest
@@ -200,7 +199,7 @@ jobs:
           TF_VAR_app_image:              "${{ needs.build.outputs.image_uri }}"
         run: terraform apply -auto-approve
 
-  # smoke tests
+  # ── Smoke test ─────────────────────────────────────────────────────────────
   smoke-test:
     name: Smoke Test
     runs-on: ubuntu-latest
@@ -226,8 +225,11 @@ jobs:
             --region ${{ env.AWS_REGION }} \
             --name ${{ env.EKS_CLUSTER }}
 
-      - name: Apply ServiceMonitor
-        run: kubectl apply -f k8s/monitoring/service-monitor.yaml
+      - name: Apply monitoring resources
+        run: |
+          kubectl apply -f k8s/monitoring/service-monitor.yaml
+          kubectl apply -f k8s/monitoring/grafana-dashboard.yaml
+          kubectl label service demo-app -n demo app=demo-app --overwrite 2>/dev/null || true
 
       - name: Wait for rollout
         run: kubectl rollout status deployment/demo-app -n demo --timeout=300s || true
