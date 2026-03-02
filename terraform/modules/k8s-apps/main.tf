@@ -135,7 +135,8 @@ resource "helm_release" "prometheus_stack" {
   version    = "57.2.0"
   namespace  = kubernetes_namespace.monitoring.metadata[0].name
   timeout    = 900
-  wait       = true
+  wait       = false
+  wait_for_jobs = false
 
   values = [yamlencode({
     prometheus = {
@@ -197,6 +198,17 @@ resource "helm_release" "prometheus_stack" {
       resources = {
         requests = { cpu = "10m", memory = "32Mi" }
         limits   = { cpu = "100m", memory = "64Mi" }
+      }
+    }
+    # Disable admission webhooks — the patch job gets stuck Pending on t3.small nodes
+    prometheusOperator = {
+      admissionWebhooks = {
+        enabled = false
+        patch   = { enabled = false }
+      }
+      resources = {
+        requests = { cpu = "50m", memory = "64Mi" }
+        limits   = { cpu = "200m", memory = "128Mi" }
       }
     }
   })]

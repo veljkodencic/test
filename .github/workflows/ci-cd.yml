@@ -10,7 +10,7 @@ env:
   ECR_REGISTRY:    "139592264087.dkr.ecr.us-east-1.amazonaws.com"
   ECR_REPOSITORY:  "veljko-demo-app"
   EKS_CLUSTER:     "veljko-eks-dev"
-  TF_STATE_BUCKET: "veljko-tfstate-139592264087"
+  TF_STATE_BUCKET: "veljko-tfstate-139592264087
   TF_WORKING_DIR:  "terraform/environments/dev"
 
 jobs:
@@ -139,6 +139,22 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Clean up failed Helm releases
+        run: |
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER }} 2>/dev/null || true
+          for release in kube-prometheus-stack aws-load-balancer-controller fluent-bit; do
+            STATUS=$(helm status $release -n monitoring 2>/dev/null | grep "STATUS:" | awk '{print $2}' || echo "")
+            if [ "$STATUS" = "failed" ] || [ "$STATUS" = "pending-install" ]; then
+              echo "Removing failed release: $release"
+              helm uninstall $release -n monitoring 2>/dev/null || true
+            fi
+          done
+          STATUS=$(helm status aws-load-balancer-controller -n kube-system 2>/dev/null | grep "STATUS:" | awk '{print $2}' || echo "")
+          if [ "$STATUS" = "failed" ] || [ "$STATUS" = "pending-install" ]; then
+            helm uninstall aws-load-balancer-controller -n kube-system 2>/dev/null || true
+          fi
+        continue-on-error: true
 
       - name: Delete leftover CloudWatch log groups
         run: |
