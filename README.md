@@ -201,7 +201,7 @@ kubectl get ingress demo-app -n demo
 
 # Grafana
 kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80
-# http://localhost:3000  — admin / <TF_VAR_GRAFANA_PASSWORD>
+# http://localhost:3000 
 # Dashboard: Dashboards → Browse → "veljko — Demo App"
 
 # Prometheus

@@ -1,5 +1,5 @@
 
-# Namespaces
+# ── Namespaces ─────────────────────────────────────────────────────────────────
 resource "kubernetes_namespace" "demo" {
   metadata { name = "demo" }
 }
@@ -12,7 +12,7 @@ resource "kubernetes_namespace" "logging" {
   metadata { name = "logging" }
 }
 
-# IRSA: AWS Load Balancer Controller
+# ── IRSA: AWS Load Balancer Controller ────────────────────────────────────────
 data "aws_iam_policy_document" "albc_assume" {
   statement {
     effect  = "Allow"
@@ -43,7 +43,7 @@ resource "aws_iam_role_policy" "albc" {
 
 
 
-#IRSA: Fluent Bit
+# ── IRSA: Fluent Bit ──────────────────────────────────────────────────────────
 data "aws_iam_policy_document" "fluentbit_assume" {
   statement {
     effect  = "Allow"
@@ -77,7 +77,7 @@ resource "aws_cloudwatch_log_group" "app_logs" {
   tags              = var.tags
 }
 
-# Kubernetes Secret: DB password
+# ── Kubernetes Secret: DB password ────────────────────────────────────────────
 resource "kubernetes_secret" "db_credentials" {
   metadata {
     name      = "db-credentials"
@@ -89,8 +89,9 @@ resource "kubernetes_secret" "db_credentials" {
   }
 }
 
-#Helm: AWS Load Balancer Controller
-
+# ── Helm: AWS Load Balancer Controller ────────────────────────────────────────
+# Must be deployed and fully ready before anything else that creates
+# Services or Ingresses — it installs admission webhooks that intercept them.
 resource "helm_release" "aws_lbc" {
   name       = "aws-load-balancer-controller"
   repository = "https://aws.github.io/eks-charts"
@@ -98,6 +99,7 @@ resource "helm_release" "aws_lbc" {
   version    = "1.7.1"
   namespace  = "kube-system"
 
+  # Wait until all LBC pods are Running before Terraform continues
   wait            = true
   wait_for_jobs   = true
   timeout         = 300
@@ -116,8 +118,8 @@ resource "helm_release" "aws_lbc" {
   }
 }
 
-# Helm: kube-prometheus-stack
-
+# ── Helm: kube-prometheus-stack ───────────────────────────────────────────────
+# depends_on LBC so the webhook is ready when Prometheus creates its Services
 resource "helm_release" "prometheus_stack" {
   name       = "kube-prometheus-stack"
   repository = "https://prometheus-community.github.io/helm-charts"
@@ -171,7 +173,7 @@ resource "helm_release" "prometheus_stack" {
         }
       }
     }
-
+    # Reduce resource usage of operator and kube-state-metrics on t3.small nodes
     prometheusOperator = {
       resources = {
         requests = { cpu = "50m", memory = "64Mi" }
@@ -190,11 +192,18 @@ resource "helm_release" "prometheus_stack" {
         limits   = { cpu = "100m", memory = "64Mi" }
       }
     }
-
     prometheusOperator = {
+      # Use certmanager = false and enabled = true with self-signed certs
       admissionWebhooks = {
-        enabled = false
-        patch   = { enabled = false }
+        enabled    = true
+        certManager = { enabled = false }
+        patch = {
+          enabled = true
+          resources = {
+            requests = { cpu = "10m", memory = "32Mi" }
+            limits   = { cpu = "50m", memory = "64Mi" }
+          }
+        }
       }
       resources = {
         requests = { cpu = "50m", memory = "64Mi" }
@@ -206,7 +215,7 @@ resource "helm_release" "prometheus_stack" {
   depends_on = [helm_release.aws_lbc]
 }
 
-# Helm: Fluent Bit
+# ── Helm: Fluent Bit ──────────────────────────────────────────────────────────
 resource "helm_release" "fluent_bit" {
   name       = "fluent-bit"
   repository = "https://fluent.github.io/helm-charts"
@@ -238,7 +247,7 @@ resource "helm_release" "fluent_bit" {
   depends_on = [helm_release.aws_lbc]
 }
 
-# Demo App: Deployment
+# ── Demo App: Deployment ───────────────────────────────────────────────────────
 resource "kubernetes_deployment" "demo_app" {
   metadata {
     name      = "demo-app"
@@ -330,7 +339,7 @@ resource "kubernetes_deployment" "demo_app" {
   ]
 }
 
-# Demo App: Service
+# ── Demo App: Service ──────────────────────────────────────────────────────────
 resource "kubernetes_service" "demo_app" {
   metadata {
     name      = "demo-app"
@@ -353,7 +362,7 @@ resource "kubernetes_service" "demo_app" {
   depends_on = [helm_release.aws_lbc]
 }
 
-# Demo App: Ingress (ALB)
+# ── Demo App: Ingress (ALB) ────────────────────────────────────────────────────
 resource "kubernetes_ingress_v1" "demo_app" {
   metadata {
     name      = "demo-app"
@@ -388,7 +397,7 @@ resource "kubernetes_ingress_v1" "demo_app" {
   depends_on = [helm_release.aws_lbc]
 }
 
-# Demo App: HPA
+# ── Demo App: HPA ──────────────────────────────────────────────────────────────
 resource "kubernetes_horizontal_pod_autoscaler_v2" "demo_app" {
   metadata {
     name      = "demo-app"
