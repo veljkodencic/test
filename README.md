@@ -171,10 +171,10 @@ veljko-infra/
 VPC 10.0.0.0/16
 ├── us-east-1a
 │   ├── Public subnet  10.0.1.0/24    — EKS nodes, NAT GW, ALB
-│   └── Private subnet 10.0.64.0/18  — RDS
+│   └── Private subnet 10.0.64.0/18   — RDS
 └── us-east-1b
     ├── Public subnet  10.0.2.0/24    — EKS nodes, ALB
-    └── Private subnet 10.0.128.0/18 — RDS standby
+    └── Private subnet 10.0.128.0/18  — RDS standby
 ```
 
 ### Security
@@ -247,7 +247,6 @@ kubectl port-forward -n monitoring svc/kube-prometheus-stack-prometheus 9091:909
 Duration: ≈ 10 minutes
 
 Triggered manually: **GitHub Actions → Destroy — veljko-infra → Run workflow**
-Requires approval from the `destroy` GitHub environment (Settings → Environments → destroy → required reviewers).
 
 The workflow cleans up in order to avoid stuck resources:
 
