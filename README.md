@@ -68,7 +68,8 @@ veljko-infra/
 │   └── requirements.txt
 ├── k8s/
 │   └── monitoring/
-│       ├── grafana-dashboard.yaml    # Auto-imported Grafana dashboard
+│       ├── grafana-dashboard.yaml   # Auto-imported Grafana dashboard
+│       ├── prometheus-rules..yaml  
 │       └── service-monitor.yaml     # Prometheus scrape config
 ├── terraform/
 │   ├── environments/dev/
@@ -77,10 +78,21 @@ veljko-infra/
 │   │   └── outputs.tf
 │   └── modules/
 │       ├── vpc/                      # VPC, subnets, IGW, NAT GW
+│       │   ├── main.tf               
+│       │   ├── variables.tf
+│       │   └── outputs.tf
 │       ├── eks/                      # EKS cluster, node group, OIDC, access entries
+│       │   ├── main.tf               
+│       │   ├── variables.tf
+│       │   └── outputs.tf
 │       ├── rds/                      # RDS PostgreSQL, subnet group, security group
+│       │   ├── main.tf               
+│       │   ├── variables.tf
+│       │   └── outputs.tf
 │       └── k8s-apps/                 # Helm releases + K8s manifests
-│           ├── main.tf
+│           ├── main.tf               
+│           ├── variables.tf
+│           ├── outputs.tf
 │           └── albc-iam-policy.json  # Full ALBC IAM policy
 └── .github/workflows/
     ├── ci-cd.yml                     # Build → Plan → Apply → Smoke test
