@@ -89,7 +89,7 @@ resource "aws_db_instance" "this" {
   storage_type          = "gp2"
   storage_encrypted     = true
 
-  multi_az            = false   # single-AZ for dev — saves ~$15/month
+  multi_az            = false
   publicly_accessible = false
   skip_final_snapshot = true
   deletion_protection = false

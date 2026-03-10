@@ -90,8 +90,7 @@ resource "kubernetes_secret" "db_credentials" {
 }
 
 # ── Helm: AWS Load Balancer Controller ────────────────────────────────────────
-# Must be deployed and fully ready before anything else that creates
-# Services or Ingresses — it installs admission webhooks that intercept them.
+
 resource "helm_release" "aws_lbc" {
   name       = "aws-load-balancer-controller"
   repository = "https://aws.github.io/eks-charts"
@@ -99,7 +98,7 @@ resource "helm_release" "aws_lbc" {
   version    = "1.7.1"
   namespace  = "kube-system"
 
-  # Wait until all LBC pods are Running before Terraform continues
+
   wait            = true
   wait_for_jobs   = true
   timeout         = 300
@@ -119,7 +118,7 @@ resource "helm_release" "aws_lbc" {
 }
 
 # ── Helm: kube-prometheus-stack ───────────────────────────────────────────────
-# depends_on LBC so the webhook is ready when Prometheus creates its Services
+
 resource "helm_release" "prometheus_stack" {
   name       = "kube-prometheus-stack"
   repository = "https://prometheus-community.github.io/helm-charts"
@@ -173,7 +172,7 @@ resource "helm_release" "prometheus_stack" {
         }
       }
     }
-    # Reduce resource usage of operator and kube-state-metrics on t3.small nodes
+
     prometheusOperator = {
       resources = {
         requests = { cpu = "50m", memory = "64Mi" }
@@ -193,7 +192,7 @@ resource "helm_release" "prometheus_stack" {
       }
     }
     prometheusOperator = {
-      # Use certmanager = false and enabled = true with self-signed certs
+
       admissionWebhooks = {
         enabled    = true
         certManager = { enabled = false }
