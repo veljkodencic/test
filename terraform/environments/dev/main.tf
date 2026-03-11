@@ -88,7 +88,7 @@ module "eks" {
   private_subnet_ids = module.vpc.private_subnet_ids
 
   # Allowed instance types: t3.small, t3.medium, t3a.small, t3a.medium
-  node_instance_types = ["t3.small"]
+  node_instance_types = ["t3.medium"]
   node_desired_size   = 2
   node_min_size       = 1
   node_max_size       = 4
